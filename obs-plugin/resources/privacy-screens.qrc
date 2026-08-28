@@ -1,0 +1,7 @@
+<RCC>
+	<qresource prefix="/privacy-guard">
+		<file alias="sensitive-file.png">sensitive-file.png</file>
+		<file alias="connection-lost.png">connection-lost.png</file>
+		<file alias="watermark.png">watermark.png</file>
+	</qresource>
+</RCC>

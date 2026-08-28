@@ -1,0 +1,97 @@
+{
+  "name": "obs-vscode-privacy-guard",
+  "displayName": "OBS VS Code Privacy Guard",
+  "description": "Fails closed in OBS when a sensitive file is visible in VS Code.",
+  "version": "0.0.1",
+  "publisher": "privacy-guard",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/connorj00/obs-vscode-privacy-guard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/connorj00/obs-vscode-privacy-guard/issues"
+  },
+  "homepage": "https://github.com/connorj00/obs-vscode-privacy-guard#readme",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run compile && node --test out/test/**/*.test.js",
+    "package": "vsce package"
+  },
+  "contributes": {
+    "configuration": {
+      "title": "OBS Privacy Guard",
+      "properties": {
+        "obsPrivacyGuard.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Report visible sensitive files to the OBS Privacy Guard plugin. Disabling this does not remotely disarm OBS."
+        },
+        "obsPrivacyGuard.rules": {
+          "type": "array",
+          "default": [
+            {
+              "id": "dotenv",
+              "type": "extension",
+              "value": ".env"
+            }
+          ],
+          "description": "Rules matched against the basename of every visible file.",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "type",
+              "value"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Non-sensitive identifier used for diagnostics."
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "extension",
+                  "startsWith",
+                  "endsWith",
+                  "includes"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1
+              },
+              "caseSensitive": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "^5.7.2"
+  }
+}

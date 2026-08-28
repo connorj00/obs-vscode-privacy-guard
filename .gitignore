@@ -1,0 +1,39 @@
+# Node / VS Code extension dependencies and generated artifacts
+**/node_modules/
+vscode-extension/out/
+vscode-extension/coverage/
+vscode-extension/*.vsix
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OBS native dependencies and CMake build trees
+obs-plugin/.deps/
+obs-plugin/build/
+obs-plugin/build_*/
+obs-plugin/out/
+obs-plugin/dist/
+obs-plugin/CMakeUserPresets.json
+obs-plugin/CMakeSettings.json
+obs-plugin/cmake/.CMakeBuildNumber
+
+# Visual Studio and other IDE-local state
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+
+# Local environment and secret files
+.env
+.env.*
+!.env.example
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

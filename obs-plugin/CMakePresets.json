@@ -1,0 +1,46 @@
+{
+  "version": 8,
+  "cmakeMinimumRequired": {
+	"major": 3,
+	"minor": 28,
+	"patch": 0
+  },
+  "configurePresets": [
+	{
+	  "name": "windows-x64",
+	  "displayName": "Windows x64",
+	  "description": "Build the OBS Privacy Guard plugin for 64-bit Windows",
+	  "generator": "Visual Studio 17 2022",
+	  "architecture": "x64",
+	  "binaryDir": "${sourceDir}/build_x64",
+	  "condition": {
+		"type": "equals",
+		"lhs": "${hostSystemName}",
+		"rhs": "Windows"
+	  },
+	  "warnings": {
+		"dev": true,
+		"deprecated": true
+	  }
+	}
+  ],
+  "buildPresets": [
+	{
+	  "name": "windows-x64",
+	  "configurePreset": "windows-x64",
+	  "displayName": "Windows x64 RelWithDebInfo",
+	  "configuration": "RelWithDebInfo"
+	}
+  ],
+  "testPresets": [
+	{
+	  "name": "windows-x64",
+	  "configurePreset": "windows-x64",
+	  "displayName": "Windows x64 native tests",
+	  "configuration": "RelWithDebInfo",
+	  "output": {
+		"outputOnFailure": true
+	  }
+	}
+  ]
+}

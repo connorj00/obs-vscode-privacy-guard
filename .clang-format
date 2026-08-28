@@ -1,0 +1,28 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+UseTab: Always
+IndentWidth: 4
+TabWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 180
+NamespaceIndentation: All
+AlignAfterOpenBracket: DontAlign
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Empty
+SortIncludes: CaseSensitive
+...
+---
+Language: JavaScript
+BasedOnStyle: LLVM
+UseTab: Always
+IndentWidth: 4
+TabWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 180
+AlignAfterOpenBracket: DontAlign
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Empty
+JavaScriptQuotes: Double
+...
+
