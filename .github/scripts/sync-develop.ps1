@@ -8,14 +8,14 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # The first workflow push may happen before develop is bootstrapped.
-git ls-remote --exit-code --heads $Remote "refs/heads/$Branch" | Out-Null
-if ($LASTEXITCODE -eq 2) {
-	Write-Host "Remote branch $Branch does not exist yet; synchronization was skipped."
-	return
-}
-
+$branchReference = git ls-remote --heads $Remote "refs/heads/$Branch"
 if ($LASTEXITCODE -ne 0) {
 	throw "Could not inspect remote branch $Remote/$Branch."
+}
+
+if (-not $branchReference) {
+	Write-Host "Remote branch $Branch does not exist yet; synchronization was skipped."
+	return
 }
 
 # Fetch the exact current develop tip used by the ancestry safety check.
