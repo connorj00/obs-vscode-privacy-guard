@@ -25,8 +25,12 @@ repository are eligible for release signing.
 The release-signing policy is intended to cover project-owned Windows release
 artifacts, including:
 
-- The native OBS plugin DLL and its distribution package.
-- The packaged VS Code extension.
+- The native OBS plugin DLL.
+- The OBS plugin Windows installer executable.
+
+The packaged VS Code extension is outside the SignPath signing scope. Extensions
+published through the Visual Studio Marketplace are signed by the Marketplace
+and verified by VS Code - which will be done in due time.
 
 Third-party or upstream binaries are not signed as if they were produced by
 this project.
