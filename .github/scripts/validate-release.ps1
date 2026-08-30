@@ -89,16 +89,12 @@ function Test-VersionTagExists {
 		[string]$Tag
 	)
 
-	git show-ref --verify --quiet "refs/tags/$Tag"
-	if ($LASTEXITCODE -eq 0) {
-		return $true
+	$matchingTag = git tag --list $Tag
+	if ($LASTEXITCODE -ne 0) {
+		throw "Could not determine whether Git tag $Tag exists."
 	}
 
-	if ($LASTEXITCODE -eq 1) {
-		return $false
-	}
-
-	throw "Could not determine whether Git tag $Tag exists."
+	return $null -ne $matchingTag
 }
 
 # Compare the exact base and candidate commits to identify affected components.
