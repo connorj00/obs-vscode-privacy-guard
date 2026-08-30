@@ -1,0 +1,170 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  changes:
+    name: Detect component releases
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      obs: ${{ steps.validate.outputs.obs }}
+      vscode: ${{ steps.validate.outputs.vscode }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release versions
+        id: validate
+        shell: pwsh
+        env:
+          BASE_COMMIT: ${{ github.event.before }}
+        run: >-
+          ./.github/scripts/validate-release.ps1
+          -BaseCommit $env:BASE_COMMIT
+          -WriteGitHubOutputs
+
+  obs-release:
+    name: Build OBS release
+    needs: changes
+    if: needs.changes.outputs.obs == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 45
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath 'obs-plugin/buildspec.json' -Raw | ConvertFrom-Json).version
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Compile and test
+        shell: pwsh
+        working-directory: obs-plugin
+        run: ./scripts/build-windows.ps1
+
+      - name: Package unsigned installer
+        shell: pwsh
+        working-directory: obs-plugin
+        run: ./scripts/build-installer-windows.ps1 -Version "${{ steps.version.outputs.value }}"
+
+      - name: Create draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ steps.version.outputs.value }}'
+          ./.github/scripts/create-draft-release.ps1 `
+            -Tag "obs-v$version" `
+            -Title "OBS plugin v$version" `
+            -Notes 'Automated unsigned build. Do not publish this draft until its Windows binaries have been signed.' `
+            -Assets @(
+              'obs-plugin/build_x64/RelWithDebInfo/obs-vscode-privacy-guard.dll'
+              "obs-plugin/dist/obs-vscode-privacy-guard-setup-$version.exe"
+            )
+
+  vscode-release:
+    name: Build VS Code release
+    needs: changes
+    if: needs.changes.outputs.vscode == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: vscode-extension
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        working-directory: .
+        run: |
+          $version = (Get-Content -LiteralPath 'vscode-extension/package.json' -Raw | ConvertFrom-Json).version
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile and test
+        run: npm test
+
+      - name: Package extension
+        run: npm run package -- --out "obs-vscode-privacy-guard-${{ steps.version.outputs.value }}.vsix"
+
+      - name: Create draft release
+        shell: pwsh
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ steps.version.outputs.value }}'
+          ./.github/scripts/create-draft-release.ps1 `
+            -Tag "vscode-v$version" `
+            -Title "VS Code extension v$version" `
+            -Notes 'Automated VS Code extension build.' `
+            -Assets @("vscode-extension/obs-vscode-privacy-guard-$version.vsix")
+
+  sync-develop:
+    name: Synchronize develop
+    needs:
+      - changes
+      - obs-release
+      - vscode-release
+    if: |
+      always() &&
+      needs.changes.result == 'success' &&
+      (needs.obs-release.result == 'success' || needs.obs-release.result == 'skipped') &&
+      (needs.vscode-release.result == 'success' || needs.vscode-release.result == 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out released commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Fast-forward develop
+        shell: pwsh
+        run: ./.github/scripts/sync-develop.ps1

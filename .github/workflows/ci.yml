@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  development-policy:
+    name: Develop branch policy
+    if: github.base_ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate development versions
+        shell: pwsh
+        env:
+          BASE_COMMIT: ${{ github.event.pull_request.base.sha }}
+          INTERNAL_MAIN_SYNC: ${{ github.head_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          $parameters = @{ BaseCommit = $env:BASE_COMMIT }
+          if ($env:INTERNAL_MAIN_SYNC -eq 'true') {
+            $parameters.AllowVersionChanges = $true
+          }
+          ./.github/scripts/validate-development.ps1 @parameters
+
+  release-readiness:
+    name: Main release readiness
+    if: github.base_ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate component versions
+        shell: pwsh
+        env:
+          BASE_COMMIT: ${{ github.event.pull_request.base.sha }}
+          SOURCE_BRANCH: ${{ github.head_ref }}
+          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+        run: >-
+          ./.github/scripts/validate-release.ps1
+          -BaseCommit $env:BASE_COMMIT
+          -SourceBranch $env:SOURCE_BRANCH
+          -SourceRepository $env:SOURCE_REPOSITORY
+          -ExpectedRepository $env:EXPECTED_REPOSITORY
+
+  vscode-extension:
+    name: VS Code extension
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: vscode-extension
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile and test
+        run: npm test
+
+      - name: Package unsigned extension
+        run: npm run package -- --out obs-vscode-privacy-guard.vsix
+
+      - name: Upload unsigned extension
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vscode-extension-unsigned
+          path: vscode-extension/obs-vscode-privacy-guard.vsix
+          if-no-files-found: error
+          retention-days: 7
+
+  obs-plugin:
+    name: OBS plugin
+    runs-on: windows-2025
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Compile and test
+        shell: pwsh
+        working-directory: obs-plugin
+        run: ./scripts/build-windows.ps1
+
+      - name: Package unsigned installer
+        shell: pwsh
+        working-directory: obs-plugin
+        run: ./scripts/build-installer-windows.ps1
+
+      - name: Upload unsigned plugin and installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: obs-plugin-unsigned
+          path: |
+            obs-plugin/build_x64/RelWithDebInfo/obs-vscode-privacy-guard.dll
+            obs-plugin/dist/obs-vscode-privacy-guard-setup-*.exe
+          if-no-files-found: error
+          retention-days: 7
