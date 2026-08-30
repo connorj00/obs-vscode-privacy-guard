@@ -47,6 +47,21 @@ function Get-JsonAtCommit {
 }
 
 # Enforce the numeric major.minor.patch format shared by both packaging systems.
+function Assert-VersionFormat {
+	param(
+		[Parameter(Mandatory)]
+		[string]$Component,
+
+		[Parameter(Mandatory)]
+		[string]$Version
+	)
+
+	$versionPattern = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$'
+	if ($Version -notmatch $versionPattern) {
+		throw "$Component version must use major.minor.patch format. Received: $Version"
+	}
+}
+
 function Assert-VersionIncremented {
 	param(
 		[Parameter(Mandatory)]
@@ -59,18 +74,31 @@ function Assert-VersionIncremented {
 		[string]$CurrentVersion
 	)
 
-	$versionPattern = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$'
-	if ($PreviousVersion -notmatch $versionPattern) {
-		throw "$Component has an invalid existing version: $PreviousVersion"
-	}
-
-	if ($CurrentVersion -notmatch $versionPattern) {
-		throw "$Component version must use major.minor.patch format. Received: $CurrentVersion"
-	}
+	Assert-VersionFormat -Component "$Component existing" -Version $PreviousVersion
+	Assert-VersionFormat -Component $Component -Version $CurrentVersion
 
 	if ([System.Version]$CurrentVersion -le [System.Version]$PreviousVersion) {
 		throw "$Component changes require a version newer than $PreviousVersion. Received: $CurrentVersion"
 	}
+}
+
+# A missing version tag identifies a component that has never been released.
+function Test-VersionTagExists {
+	param(
+		[Parameter(Mandatory)]
+		[string]$Tag
+	)
+
+	git show-ref --verify --quiet "refs/tags/$Tag"
+	if ($LASTEXITCODE -eq 0) {
+		return $true
+	}
+
+	if ($LASTEXITCODE -eq 1) {
+		return $false
+	}
+
+	throw "Could not determine whether Git tag $Tag exists."
 }
 
 # Compare the exact base and candidate commits to identify affected components.
@@ -81,10 +109,12 @@ if ($LASTEXITCODE -ne 0) {
 
 $obsChanged = $null -ne ($changedFiles | Where-Object { $_ -like 'obs-plugin/*' } | Select-Object -First 1)
 $vscodeChanged = $null -ne ($changedFiles | Where-Object { $_ -like 'vscode-extension/*' } | Select-Object -First 1)
+$currentBuildSpec = Get-Content -LiteralPath 'obs-plugin/buildspec.json' -Raw | ConvertFrom-Json
+$currentPackage = Get-Content -LiteralPath 'vscode-extension/package.json' -Raw | ConvertFrom-Json
+$currentLock = Get-Content -LiteralPath 'vscode-extension/package-lock.json' -Raw | ConvertFrom-Json -AsHashtable
 
 if ($obsChanged) {
 	$previousBuildSpec = Get-JsonAtCommit -Commit $BaseCommit -Path 'obs-plugin/buildspec.json'
-	$currentBuildSpec = Get-Content -LiteralPath 'obs-plugin/buildspec.json' -Raw | ConvertFrom-Json
 	Assert-VersionIncremented `
 		-Component 'OBS plugin' `
 		-PreviousVersion $previousBuildSpec.version `
@@ -93,20 +123,38 @@ if ($obsChanged) {
 
 if ($vscodeChanged) {
 	$previousPackage = Get-JsonAtCommit -Commit $BaseCommit -Path 'vscode-extension/package.json'
-	$currentPackage = Get-Content -LiteralPath 'vscode-extension/package.json' -Raw | ConvertFrom-Json
-	$currentLock = Get-Content -LiteralPath 'vscode-extension/package-lock.json' -Raw | ConvertFrom-Json -AsHashtable
-
 	Assert-VersionIncremented `
 		-Component 'VS Code extension' `
 		-PreviousVersion $previousPackage.version `
 		-CurrentVersion $currentPackage.version
+}
 
+$obsReleaseRequired = $obsChanged
+$vscodeReleaseRequired = $vscodeChanged
+
+# Post-merge runs also bootstrap any current version that has no release tag.
+if ($WriteGitHubOutputs) {
+	Assert-VersionFormat -Component 'OBS plugin' -Version $currentBuildSpec.version
+	Assert-VersionFormat -Component 'VS Code extension' -Version $currentPackage.version
+
+	if (-not (Test-VersionTagExists -Tag "obs-v$($currentBuildSpec.version)")) {
+		$obsReleaseRequired = $true
+		Write-Host "OBS plugin v$($currentBuildSpec.version) has no release tag and will be built."
+	}
+
+	if (-not (Test-VersionTagExists -Tag "vscode-v$($currentPackage.version)")) {
+		$vscodeReleaseRequired = $true
+		Write-Host "VS Code extension v$($currentPackage.version) has no release tag and will be built."
+	}
+}
+
+if ($vscodeReleaseRequired) {
 	if ($currentLock.version -ne $currentPackage.version -or $currentLock.packages[''].version -ne $currentPackage.version) {
 		throw 'The VS Code package.json and package-lock.json versions must match.'
 	}
 }
 
-if (-not $obsChanged -and -not $vscodeChanged) {
+if (-not $obsReleaseRequired -and -not $vscodeReleaseRequired) {
 	Write-Host 'No component release is required for these changes.'
 	if ($WriteGitHubOutputs) {
 		'obs=false' >> $env:GITHUB_OUTPUT
@@ -117,8 +165,8 @@ if (-not $obsChanged -and -not $vscodeChanged) {
 }
 
 if ($WriteGitHubOutputs) {
-	"obs=$($obsChanged.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-	"vscode=$($vscodeChanged.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+	"obs=$($obsReleaseRequired.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+	"vscode=$($vscodeReleaseRequired.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 }
 
-Write-Host 'All changed components have valid version increments.'
+Write-Host 'All required component releases have valid versions.'
