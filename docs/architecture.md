@@ -87,4 +87,3 @@ Implemented:
 Still to implement:
 
 - Live OBS/VS Code named-pipe lifecycle test.
-- CI release packaging.
