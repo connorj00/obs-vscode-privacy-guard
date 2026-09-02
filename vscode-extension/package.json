@@ -2,7 +2,7 @@
   "name": "obs-vscode-privacy-guard",
   "displayName": "OBS VS Code Privacy Guard",
   "description": "Fails closed in OBS when a sensitive file is visible in VS Code.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "privacy-guard",
   "license": "MIT",
   "repository": {

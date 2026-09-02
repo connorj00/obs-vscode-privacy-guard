@@ -14,15 +14,31 @@ basename and are case-insensitive by default.
 
 ```json
 {
-  "obsPrivacyGuard.rules": [
-    { "id": "dotenv", "type": "extension", "value": ".env" },
-    { "id": "server-prefix", "type": "startsWith", "value": "sv_" },
-    { "id": "server-suffix", "type": "endsWith", "value": "_sv.lua" },
-    { "id": "config", "type": "includes", "value": "config" }
-  ]
+	"obsPrivacyGuard.rules": [
+		{
+			"id": "dotenv",
+			"type": "extension",
+			"value": ".env"
+		},
+		{
+			"id": "secret-prefix",
+			"type": "startsWith",
+			"value": "secret_"
+		},
+		{
+			"id": "credentials-suffix",
+			"type": "endsWith",
+			"value": "_credentials.json"
+		},
+		{
+			"id": "config",
+			"type": "includes",
+			"value": "config",
+			"caseSensitive": true
+		}
+	]
 }
 ```
 
 Open but hidden/background tabs do not trigger protection. Every editor visible
 in a split layout is checked.
-
