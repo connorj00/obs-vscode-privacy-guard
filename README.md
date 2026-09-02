@@ -1,6 +1,6 @@
 # OBS VS Code Privacy Guard
 
-## 1. Overview
+## 📑 1. Overview
 
 OBS VS Code Privacy Guard is a paired VS Code extension and OBS Studio plugin
 for developers who stream their work. It automatically protects the complete
@@ -37,7 +37,22 @@ Custom scenes and transitions are user-managed and should be tested before use.
 
 ### VSCode Sensitive-File Config Example
 
-![VSCode Sensitive-File Config](https://i.gyazo.com/a555e61b9fae06e6904c519a8fab0482.png)
+```json
+{
+	"obsPrivacyGuard.rules": [
+		{
+			"id": "dotenv",
+			"type": "extension",
+			"value": ".env"
+		},
+		{
+			"id": "privacy",
+			"type": "includes",
+			"value": "privacy"
+		}
+	]
+}
+```
 
 - This tells the VS Code plugin that the sensitive files are ruled as follows:
     - Any files with the file extension .env.
@@ -47,7 +62,7 @@ You can see the full options for sensitive-file rules in the configuration secti
 
 ### Example of NON-SENSITIVE file being open in VSCode
 
-![Non-sensitive file open](https://i.gyazo.com/3426dc8127e62b84e71040742b5a0986.png)
+![Non-sensitive file open](https://i.gyazo.com/2876ba3a85988b0f7a788d0555eda5ab.png)
 
 - You'll see in this screenshot that we have a file called `protocol.cpp` open
   which doesn't match any of our above sensitive file rules, therefore the file
@@ -73,7 +88,7 @@ You can see the full options for sensitive-file rules in the configuration secti
   with OBS, in cases where the VSCode extension encounters a bug or hitches. The fallback
   is to heavily reduce the risk of OBS showing a sensitive file.
 
-## 2. Installation
+## 💾 2. Installation
 
 Privacy Guard is currently only supported for Windows. Both components must be installed:
 the VSCode extension - detects sensitive files. Also, the OBS plugin - enforces
@@ -179,7 +194,7 @@ With OBS and VS Code open:
 Do not stream with the plugin until sensitive-file and connection-loss tests
 have both succeeded in your actual OBS scene collection.
 
-## 3. VS Code Extension Configuration
+## ⚙️ 3. VS Code Extension Configuration
 
 Open VS Code settings and search for **OBS Privacy Guard**, or edit your
 `settings.json` directly.
@@ -252,7 +267,7 @@ Only visible text editors are checked. A background tab that is open but not
 visible does not trigger protection. Every editor visible in a split layout is
 checked, so any matching split protects the OBS output.
 
-## 4. OBS Plugin Configuration
+## ⚙️ 4. OBS Plugin Configuration
 
 Open OBS and select **Tools → VS Code Privacy Guard**.
 
@@ -314,17 +329,20 @@ Recommended test procedure:
 
 In the following screenshot you'll see the default settings used for the bundled
 images for sensitive files and connection lost:
+
 ![OBS Plugin settings defaults](https://i.gyazo.com/8bc6951320f9088d335c13e9b3292d17.png)
 
 This screenshot then shows the option of using a custom image instead of the
 bundled images for sensitive files and connection lost:
+
 ![OBS Plugin settings custom image](https://i.gyazo.com/53aaa4d20f02347045855d7608192728.png)
 
 Lastly, this shows the plugin configured to use a custom scene instead of either
 image-overlay option:
+
 ![OBS Plugin settings custom scene](https://i.gyazo.com/fbd1fb4365733c431e78d69cdac4cacf.png)
 
-## 5. Technical Bits
+## 💻 5. Technical Bits
 
 ### Repository layout
 
@@ -416,7 +434,7 @@ restore the black fallback when required.
 See [docs/architecture.md](docs/architecture.md) for the detailed security model
 and current implementation boundaries.
 
-### Project policies
+### 📄 Project policies
 
 - [MIT licence](LICENSE)
 - [Privacy Policy](PRIVACY.md)
