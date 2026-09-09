@@ -32,7 +32,7 @@
   },
   "name": "obs-vscode-privacy-guard",
   "displayName": "OBS VS Code Privacy Guard",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": "Privacy Guard contributors",
   "website": "",
   "email": ""

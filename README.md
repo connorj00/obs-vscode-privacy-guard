@@ -109,8 +109,10 @@ For manual building & installation:
   3.28 or newer, and a Windows SDK when building the OBS plugin from source.
 - Inno Setup 6 when building the OBS plugin installer from source.
 
-Automated GitHub release packaging is not implemented yet, so the current
-version is built and packaged from source.
+GitHub Actions builds both components into one draft product release, tagged
+`v<version>`. Each release contains the Windows installer, standalone OBS DLL,
+and VS Code VSIX at the same version. Windows binaries are currently unsigned;
+drafts are not published automatically. See [the release process](docs/releases.md).
 
 ### Install the VS Code extension
 

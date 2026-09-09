@@ -82,87 +82,100 @@ function Assert-VersionIncremented {
 	}
 }
 
-# A missing version tag identifies a component that has never been released.
-function Test-VersionTagExists {
-	param(
-		[Parameter(Mandatory)]
-		[string]$Tag
-	)
+# Documentation and CI metadata inside a component are not product changes.
+function Get-ProductChanges {
+	param([string]$Commit)
 
-	$matchingTag = git tag --list $Tag
+	$files = if ($Commit -match '^0+$') {
+		@(git ls-tree -r --name-only HEAD)
+	} else {
+		@(git diff --name-only --no-renames $Commit HEAD)
+	}
 	if ($LASTEXITCODE -ne 0) {
-		throw "Could not determine whether Git tag $Tag exists."
+		throw "Could not compare product files with commit $Commit."
 	}
 
-	return $null -ne $matchingTag
+	return $files | Where-Object {
+		$_ -match '^(obs-plugin|vscode-extension)/' -and
+		$_ -notmatch '(?i)(^|/)(docs?|\.github|\.vscode)/|\.(md|mdx|rst)$' -and
+		$_ -notmatch '(^|/)(LICENSE|NOTICE|\.gitignore|\.prettierignore|\.prettierrc(?:\.json)?)$'
+	}
 }
 
-# Compare the exact base and candidate commits to identify affected components.
-$changedFiles = @(git diff --name-only $BaseCommit HEAD)
-if ($LASTEXITCODE -ne 0) {
-	throw "Could not compare the pull request with base commit $BaseCommit."
-}
-
-$obsChanged = $null -ne ($changedFiles | Where-Object { $_ -like 'obs-plugin/*' } | Select-Object -First 1)
-$vscodeChanged = $null -ne ($changedFiles | Where-Object { $_ -like 'vscode-extension/*' } | Select-Object -First 1)
 $currentBuildSpec = Get-Content -LiteralPath 'obs-plugin/buildspec.json' -Raw | ConvertFrom-Json
 $currentPackage = Get-Content -LiteralPath 'vscode-extension/package.json' -Raw | ConvertFrom-Json
 $currentLock = Get-Content -LiteralPath 'vscode-extension/package-lock.json' -Raw | ConvertFrom-Json -AsHashtable
+$version = $currentPackage.version
+$releaseRequired = $false
 
-if ($obsChanged) {
-	$previousBuildSpec = Get-JsonAtCommit -Commit $BaseCommit -Path 'obs-plugin/buildspec.json'
-	Assert-VersionIncremented `
-		-Component 'OBS plugin' `
-		-PreviousVersion $previousBuildSpec.version `
-		-CurrentVersion $currentBuildSpec.version
-}
-
-if ($vscodeChanged) {
-	$previousPackage = Get-JsonAtCommit -Commit $BaseCommit -Path 'vscode-extension/package.json'
-	Assert-VersionIncremented `
-		-Component 'VS Code extension' `
-		-PreviousVersion $previousPackage.version `
-		-CurrentVersion $currentPackage.version
-}
-
-$obsReleaseRequired = $obsChanged
-$vscodeReleaseRequired = $vscodeChanged
-
-# Post-merge runs also bootstrap any current version that has no release tag.
-if ($WriteGitHubOutputs) {
+# A missing unified tag alone must never turn a documentation push into a release.
+# The all-zero before SHA denotes a newly created branch; inspect its full tree.
+$incomingChanges = @(Get-ProductChanges -Commit $BaseCommit)
+if ($incomingChanges.Count -gt 0) {
 	Assert-VersionFormat -Component 'OBS plugin' -Version $currentBuildSpec.version
-	Assert-VersionFormat -Component 'VS Code extension' -Version $currentPackage.version
-
-	if (-not (Test-VersionTagExists -Tag "obs-v$($currentBuildSpec.version)")) {
-		$obsReleaseRequired = $true
-		Write-Host "OBS plugin v$($currentBuildSpec.version) has no release tag and will be built."
+	Assert-VersionFormat -Component 'VS Code extension' -Version $version
+	if ($currentBuildSpec.version -ne $version) {
+		throw 'The OBS plugin and VS Code extension must have the same product version.'
 	}
-
-	if (-not (Test-VersionTagExists -Tag "vscode-v$($currentPackage.version)")) {
-		$vscodeReleaseRequired = $true
-		Write-Host "VS Code extension v$($currentPackage.version) has no release tag and will be built."
-	}
-}
-
-if ($vscodeReleaseRequired) {
-	if ($currentLock.version -ne $currentPackage.version -or $currentLock.packages[''].version -ne $currentPackage.version) {
+	if ($currentLock.version -ne $version -or $currentLock.packages[''].version -ne $version) {
 		throw 'The VS Code package.json and package-lock.json versions must match.'
 	}
-}
 
-if (-not $obsReleaseRequired -and -not $vscodeReleaseRequired) {
-	Write-Host 'No component release is required for these changes.'
-	if ($WriteGitHubOutputs) {
-		'obs=false' >> $env:GITHUB_OUTPUT
-		'vscode=false' >> $env:GITHUB_OUTPUT
+	# Enumerating tags succeeds even when no tags match. Legacy component tags are ignored.
+	$tags = @(git tag --list 'v*')
+	if ($LASTEXITCODE -ne 0) {
+		throw 'Could not enumerate unified product tags.'
+	}
+	$tags = @($tags | Where-Object { $_ -cmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$' })
+	if ($tags -ccontains "v$version") {
+		throw "Unified product tag v$version already exists. Choose a new version."
+	}
+	$previousTag = $tags | Sort-Object { [System.Version]$_.Substring(1) } -Descending | Select-Object -First 1
+
+	# Require a new version even when the preceding release is still a draft.
+	if ($BaseCommit -notmatch '^0+$') {
+		$previousObs = Get-JsonAtCommit -Commit $BaseCommit -Path 'obs-plugin/buildspec.json'
+		$previousVsCode = Get-JsonAtCommit -Commit $BaseCommit -Path 'vscode-extension/package.json'
+
+		# Only the initial migration may reuse the existing VS Code version.
+		$isMigration = (
+			-not $previousTag -and
+			$previousObs.version -eq '0.0.1' -and
+			$previousVsCode.version -eq '0.0.2' -and
+			$version -eq '0.0.2'
+		)
+
+		if (-not $isMigration) {
+			Assert-VersionIncremented `
+				-Component 'OBS plugin' `
+				-PreviousVersion $previousObs.version `
+				-CurrentVersion $version
+
+			Assert-VersionIncremented `
+				-Component 'VS Code extension' `
+				-PreviousVersion $previousVsCode.version `
+				-CurrentVersion $version
+		}
 	}
 
-	return
+	if ($previousTag) {
+		Assert-VersionIncremented -Component 'Product' -PreviousVersion $previousTag.Substring(1) -CurrentVersion $version
+
+		git merge-base --is-ancestor "refs/tags/$previousTag" HEAD
+		if ($LASTEXITCODE -ne 0) {
+			throw "Previous product release $previousTag is not an ancestor of HEAD."
+		}
+
+		$releaseRequired = @(Get-ProductChanges -Commit "refs/tags/$previousTag").Count -gt 0
+	} else {
+		Write-Host 'No unified product tag exists; validating the initial product release.'
+		$releaseRequired = $true
+	}
 }
 
 if ($WriteGitHubOutputs) {
-	"obs=$($obsReleaseRequired.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-	"vscode=$($vscodeReleaseRequired.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+	"release=$($releaseRequired.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+	"version=$version" >> $env:GITHUB_OUTPUT
 }
 
-Write-Host 'All required component releases have valid versions.'
+Write-Host "Product release required: $releaseRequired (version $version)."

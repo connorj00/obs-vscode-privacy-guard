@@ -64,7 +64,9 @@ Use lowercase words separated by hyphens.
 ## Versions
 
 Do not change component versions in normal pull requests. The maintainer selects
-versions when preparing a release branch.
+one shared product version when preparing a release branch. Both component
+versions and the VS Code lockfile must match, even when only one component
+changed. See [the release process](docs/releases.md).
 
 ## Testing
 

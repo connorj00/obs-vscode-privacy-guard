@@ -14,5 +14,6 @@
 	},
 	"[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features"
-	}
+	},
+	"cmake.sourceDirectory": "${workspaceFolder}/obs-plugin"
 }
